@@ -76,7 +76,7 @@ We read the 3 executed attacks in the Arete column and none is the agent acting 
 
 Task scores are harder to read. Of the 19 attacked tasks Qwen finished and Arete did not, 10 are correct answers that fail AgentDojo's check because Arete called `get_unread_emails`, which marks mail as read. Counting those 10 as done gives 164/200 (82%), and the paired gap to Qwen is no longer clear (9 against 2, p = 0.065).
 
-The loops are a real problem. Arete repeated the same write action until the message limit: up to 329 `create_calendar_event` calls in one task, with and without an attack. That happened in 2 of 200 attacked tasks and 2 of 96 clean tasks; two more clean tasks and one attacked task looped on `search_files`. Do not give this model write tools without a limit on repeated calls. The runs used temperature 0, and the loops have not been tested at the server default of 1.0.
+The loops are a real problem. Arete repeated the same write action until the message limit: up to 329 `create_calendar_event` calls in one task, with and without an attack. That happened in 2 of 200 attacked tasks and 2 of 96 clean tasks. One attacked task sent the same Slack message 42 times, and two clean tasks and one attacked task looped on `search_files`. Do not give this model write tools without a limit on repeated calls. The runs used temperature 0, and the loops have not been tested at the server default of 1.0.
 
 Speed, measured separately from the scores: 44.5 tok/s weighted, 33.6 on Dutch prose, 112.5 on a tool call, 1,200-1,300 tok/s prefill, 122.7 tok/s across 4 requests. The office run took 3.1 hours.
 

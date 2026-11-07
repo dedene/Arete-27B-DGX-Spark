@@ -30,7 +30,7 @@ Serve Arete-27B (dense Qwen3.8-27B fine-tune, MLX 4-bit, 16.1 GB) on one DGX Spa
 
 ## Findings (2026-11-07, bring-up)
 - First load healthy in under a minute with the files local. `check.py` all ok: tool call, round trip, thinking, Dutch, a PNG.
-- GPU memory 85.6 GB at 262,144 with 4 streams and bf16 KV. The two runs held about 3.4 hours in total.
+- GPU memory 85.6 GB at 262,144 with 4 streams and bf16 KV.
 - TensorFold's prebuilt release serves this checkpoint. No Zig build, no patches.
 
 ## Findings (2026-11-07, agent benchmark)
