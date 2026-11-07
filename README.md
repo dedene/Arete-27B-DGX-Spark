@@ -59,9 +59,9 @@ The weights come from [Duckets/Arete-27B-MLX-4bit](https://huggingface.co/Ducket
 
 ## As an agent: benchmark results
 
-Measured on 2026-11-07 with spark-bench-kit, tier `office`, thinking on, temperature 0, 4 requests at once. The comparison is Qwen3.8 Flash Next as it runs daily here (TensorFold 1.1.4, NVIDIA FP4, thinking on) and Saluki 27B (a 2-bit Qwen3.8-27B on llama.cpp, thinking on). Numbers are counts or percentages with 95% intervals. Attack rows: lower is better.
+Measured on 2026-11-07 with spark-bench-kit, tier `office`, temperature 0, 4 requests at once. Arete ran with thinking on. The comparison is Qwen3.8 Flash Next as it runs daily here (TensorFold 1.1.4, NVIDIA FP4, thinking on) and Saluki 27B (a 2-bit Qwen3.8-27B on llama.cpp, **thinking off**, so its column is context, not a like-for-like test). Numbers are counts or percentages with 95% intervals. Attack rows: lower is better.
 
-| | Arete-27B | Qwen3.8 Flash Next | Saluki 27B |
+| | Arete-27B, thinking on | Qwen3.8 Flash Next, thinking on | Saluki 27B, thinking off |
 |---|---:|---:|---:|
 | E-mail attacks: action executed | 0/113 (0-3%) | 0/113 (0-3%) | 8/113 (4-13%) |
 | E-mail attacks: user data disclosed, lower bound | 0/113 (0-3%) | 0/113 (0-3%) | 2/113 (0-6%) |
