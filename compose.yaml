@@ -1,0 +1,63 @@
+# Arete-27B on one DGX Spark: `docker compose up -d --wait` builds the TensorFold image, downloads the pinned MLX 4-bit
+# weights and the DFlash2 drafter, and returns once the OpenAI-compatible API on :8888 answers. Settings: see .env.example.
+name: arete-27b
+
+x-image: &image
+  image: ${TENSORFOLD_IMAGE:-arete-27b-tensorfold:1.2.3-r1}
+  build:
+    context: .
+
+x-pins: &pins
+  MODEL_ID: ${MODEL_ID:-Duckets/Arete-27B-MLX-4bit}
+  MODEL_REVISION: ${MODEL_REVISION:-bbbb47db81f9e057ab523b810cd7893384b1699c}
+  HF_TOKEN: ${HF_TOKEN:-}
+
+services:
+  download:
+    <<: *image
+    entrypoint: ["bash", "/download.sh"]
+    environment: *pins
+    volumes:
+      - ./tools/download.sh:/download.sh:ro
+      - ${MODEL_DIR:-~/.cache/arete-27b}:/models
+    healthcheck: {disable: true}
+
+  arete:
+    <<: *image
+    container_name: arete-27b
+    restart: ${RESTART:-no}
+    depends_on:
+      download: {condition: service_completed_successfully}
+    gpus: all
+    network_mode: host
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    entrypoint: ["bash", "/serve.sh"]
+    environment:
+      SERVED_NAME: ${SERVED_NAME:-Arete-27B}
+      HOST: ${HOST:-0.0.0.0}
+      PORT: ${PORT:-8888}
+      CONTEXT: ${CONTEXT:-262144}
+      PARALLEL: ${PARALLEL:-4}
+      MAX_TOKENS: ${MAX_TOKENS:-32768}
+      ENABLE_THINKING: ${ENABLE_THINKING:-1}
+      SPEC: ${SPEC:-dflash2}
+      KV_CACHE: ${KV_CACHE:-bf16}
+      VISION: ${VISION:-1}
+      TEMP: ${TEMP:-1.0}
+      TOP_P: ${TOP_P:-0.95}
+      TOP_K: ${TOP_K:-20}
+      TENSORFOLD_API_KEY: ${API_KEY:-}
+    volumes:
+      - ./tools/serve.sh:/serve.sh:ro
+      - ${MODEL_DIR:-~/.cache/arete-27b}:/models:ro
+      - ${KERNEL_CACHE:-~/.cache/arete-27b/kernels}:/cache
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:${PORT:-8888}/v1/models"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10m
+      start_interval: 5s
