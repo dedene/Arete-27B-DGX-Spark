@@ -26,11 +26,12 @@ Thinking is on by default, the template's default. The trace comes back separate
 
 ## How it is put together
 
-- `Dockerfile`: the TensorFold 1.2.3 release archive, sha256 checked, on MiaAI-Lab's published image. That image already has the NVIDIA PyTorch base (cuBLASLt for vision) and the JPEG and WebP decoders.
+- `Dockerfile`: the TensorFold 1.2.6 release archive, sha256 checked, on MiaAI-Lab's published image. That image already has the NVIDIA PyTorch base (cuBLASLt for vision) and the JPEG and WebP decoders.
 - `compose.yaml`: `download` (one-shot) then `arete` (the server, with a healthcheck).
 - `tools/download.sh`: fetches each pinned file and checks its sha256. Resumable.
 - `tools/serve.sh`: every engine flag.
 - `tools/check.py`: functional checks, standard library only.
+- `tools/agents.py`: many agents with long prompts, then a follow-up each; times each follow-up's first token.
 
 The weights come from [Duckets/Arete-27B-MLX-4bit](https://huggingface.co/Duckets/Arete-27B-MLX-4bit), a third-party conversion. Its tensor layout matches `TensorFold/Qwen3.8-27B-MLX-4bit`, and its norm tensors match Nous's weights once you allow for how the conversion stores them. Its `tokenizer.json` does not match: the conversion rewrote the pre-tokenizer's regex, so `download.sh` takes the tokenizer files from Nous.
 
@@ -45,6 +46,7 @@ The weights come from [Duckets/Arete-27B-MLX-4bit](https://huggingface.co/Ducket
 | `SPEC` | `dflash2` | `dflash2` or `none`. Drafts are verified, so this changes speed, not replies |
 | `KV_CACHE` | `bf16` | `bf16` is exact; `fp8` is smaller and lossy |
 | `VISION` | `1` | Image input |
+| `TF_QWEN_REQUEST_STARTS` | `1` | A chat's next turn resumes at the previous turn's history instead of prefilling it again. Same tokens; `0` turns it off |
 | `TEMP` `TOP_P` `TOP_K` | `1.0` `0.95` `20` | Server sampling defaults, from `generation_config.json` |
 | `SERVED_NAME` `HOST` `PORT` | `Arete-27B` `0.0.0.0` `8888` | Name and address |
 | `API_KEY` | empty | Set to require a bearer token |
@@ -57,9 +59,28 @@ The weights come from [Duckets/Arete-27B-MLX-4bit](https://huggingface.co/Ducket
 - The API is open on the LAN unless `API_KEY` is set.
 - DFlash2 was trained on base Qwen3.8-27B, not on Arete. The kit measured speed, but not how often drafts land on this fine-tune.
 
+## Follow-ups and many agents
+
+TensorFold 1.2.6 keeps prompt states better when many agents send follow-ups at once. `tools/agents.py` measures that on
+this setup (4 streams, greedy, thinking off): every agent sends its own ~14.5K-token prompt, then all send a follow-up on
+the same conversation together. Median time to a follow-up's first token, one run each, 2026-11-10:
+
+| Agents | 1.2.3 | 1.2.6 | 1.2.6 + `TF_QWEN_REQUEST_STARTS=1` (default here) |
+|---|---|---|---|
+| 1 | 1.8 s | 1.8 s | 0.3 s |
+| 4 | 4.6 s | 4.6 s | 0.9 s |
+| 8 | 8.8 s | 8.6 s | 12.9 s |
+| 16 | 89.7 s | 42.9 s | 77.5 s |
+
+- Up to 4 agents, the number of streams, request starts make follow-ups 5 times quicker. A follow-up resumed this way
+  gave the same tokens as the same request on a fresh server, thinking off and on (0.23 s against 5.3 s).
+- 1.2.6 alone halves the wait at 16 agents (TensorFold's own GB10 run: 105 to 25.8 s). With request starts that gain is
+  smaller. Hermes rarely runs more than four conversations at once, so the default favours that.
+- First turns, decode, `check.py` and the tool-call probes are level between 1.2.3 and 1.2.6.
+
 ## As an agent: benchmark results
 
-Measured on 2026-11-07 with spark-bench-kit, tier `office`, temperature 0, 4 requests at once. Arete ran with thinking on. The comparison is Qwen3.8 Flash Next as it runs daily here (TensorFold 1.1.4, NVIDIA FP4, thinking on) and Saluki 27B (a 2-bit Qwen3.8-27B on llama.cpp, **thinking off**, so its column is context, not a like-for-like test). Numbers are counts or percentages with 95% intervals. Attack rows: lower is better.
+Measured on 2026-11-07 (TensorFold 1.2.3) with spark-bench-kit, tier `office`, temperature 0, 4 requests at once. Arete ran with thinking on. The comparison is Qwen3.8 Flash Next as it runs daily here (TensorFold 1.1.4, NVIDIA FP4, thinking on) and Saluki 27B (a 2-bit Qwen3.8-27B on llama.cpp, **thinking off**, so its column is context, not a like-for-like test). Numbers are counts or percentages with 95% intervals. Attack rows: lower is better.
 
 | | Arete-27B, thinking on | Qwen3.8 Flash Next, thinking on | Saluki 27B, thinking off |
 |---|---:|---:|---:|

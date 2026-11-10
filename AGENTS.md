@@ -1,11 +1,11 @@
 # AGENTS.md
 
-Serve Arete-27B (dense Qwen3.8-27B fine-tune, MLX 4-bit, 16.1 GB) on one DGX Spark with TensorFold 1.2.3 via Docker Compose.
+Serve Arete-27B (dense Qwen3.8-27B fine-tune, MLX 4-bit, 16.1 GB) on one DGX Spark with TensorFold 1.2.6 via Docker Compose.
 
 ## Layout
 - `compose.yaml`: `download` (one-shot, sha256 per file) -> `arete` (server, healthcheck on `/v1/models`).
 - `Dockerfile`: TensorFold release archive on MiaAI-Lab's published image. Bump the tag's `-rN` with every change, or `up` keeps the old build.
-- `tools/download.sh`, `tools/serve.sh`, `tools/check.py`. Knobs are `${VAR:-default}`; `.env.example` documents them.
+- `tools/download.sh`, `tools/serve.sh`, `tools/check.py`, `tools/agents.py` (follow-up first token with N agents). Knobs are `${VAR:-default}`; `.env.example` documents them.
 
 ## Spark
 - `ssh zenjoy@10.0.0.158`, `~/Development/Arete-27B-DGX-Spark`, data in `~/.cache/arete-27b`.
@@ -17,7 +17,8 @@ Serve Arete-27B (dense Qwen3.8-27B fine-tune, MLX 4-bit, 16.1 GB) on one DGX Spa
 - `docker compose up -d --wait`, then `tools/check.py` (all ok).
 
 ## Pins
-- TensorFold 1.2.3 linux-aarch64 archive sha256 `02bb060e2f42bc4dcc0d3c6800022046b10420e0237ebde2519343703f4f68f9`.
+- TensorFold 1.2.6 linux-aarch64 archive sha256 `d227a6e65516329ace9d460ee8d1d695f0b66eb69005960bed538f831e1f9543` (image `1.2.6-r2`).
+  Before: 1.2.3, sha256 `02bb060e2f42bc4dcc0d3c6800022046b10420e0237ebde2519343703f4f68f9` (image `1.2.3-r1`).
 - Base image `ghcr.io/miaai-lab/qwen3.8-flash-next-single-dgx-spark-tensorfold@sha256:5c6c42b9747318c1cd8b6cb85cb69493fff2e82cb23b61e49b9cf54cd09ac28e`.
 - Weights `Duckets/Arete-27B-MLX-4bit@bbbb47db81f9e057ab523b810cd7893384b1699c`.
 - Tokenizer `NousResearch/Arete-27B@108f0afbdcfaa1ceeda4a635004304dfff6d4da2`. Drafter `z-lab/Qwen3.8-27B-DFlash2@50307d4c4cde6860d4eee73e2547cd786fe8e8a4`.
@@ -41,6 +42,17 @@ Serve Arete-27B (dense Qwen3.8-27B fine-tune, MLX 4-bit, 16.1 GB) on one DGX Spa
 - Real defect: loops on the same write call until the message limit, no attack needed. `create_calendar_event` up to 329 times (`workspace_plus-u15`, `travel-u8`). `search_files` loops too (`u27`, `u35`, `u38`). In `workspace_plus-u15`, 328 of 329 calls came in one reply. Message limit hit: Arete 4/96 clean, 4/200 attacked; Qwen 0/96, 3/200, so Qwen loops under attack too. Temperature 0 only; 1.0 is untested.
 - Speed: 44.5 tok/s weighted, Dutch 33.6, tool call 112.5, prefill 1,189-1,281, 4 streams 122.7.
 - Not measured: DFlash2 acceptance on Arete, base Qwen3.8-27B on this setup, the cuda.fast contest engine.
+
+## Findings (2026-11-10, TensorFold 1.2.6)
+- `check.py` all ok on 1.2.3, 1.2.6 and 1.2.6 with `TF_QWEN_REQUEST_STARTS=1`. First turns and decode level.
+- Follow-up first token (`tools/agents.py`, ~14.5K-token prompts, 4 streams): 1/4/8/16 agents 1.8/4.6/8.8/89.7 s on 1.2.3,
+  1.8/4.6/8.6/42.9 s on 1.2.6, 0.3/0.9/12.9/77.5 s with request starts. One run each.
+- Request starts (opt-in since 1.2.5, on by default here): resumed follow-up tokens equal a fresh server's, thinking off
+  and on. The startup log lists it as an override (`arithmetic, env`).
+- `usage.prompt_tokens_details.cached_tokens` reads 0 even when a follow-up resumes. Time to first token is the signal.
+- The `strict: true` tool grammar still cuts a call at the first parameter written out of schema order on 1.2.6.
+  Hermes sends no `strict`; spark-bench-kit sends `strict: false` since 2026-11-09.
+- 1.2.6 moves the prompt cache to device memory (9.2 GiB, budgeted as host memory); 1.2.3 kept 8.0 GiB on the host.
 
 ## Constraints
 - Never `hf cache prune` on the Spark. Never write Hermes config.

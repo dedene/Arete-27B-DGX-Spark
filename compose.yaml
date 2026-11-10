@@ -3,7 +3,7 @@
 name: arete-27b
 
 x-image: &image
-  image: ${TENSORFOLD_IMAGE:-arete-27b-tensorfold:1.2.3-r1}
+  image: ${TENSORFOLD_IMAGE:-arete-27b-tensorfold:1.2.6-r2}
   build:
     context: .
 
@@ -50,6 +50,7 @@ services:
       TOP_P: ${TOP_P:-0.95}
       TOP_K: ${TOP_K:-20}
       TENSORFOLD_API_KEY: ${API_KEY:-}
+      TF_QWEN_REQUEST_STARTS: ${TF_QWEN_REQUEST_STARTS:-1}
     volumes:
       - ./tools/serve.sh:/serve.sh:ro
       - ${MODEL_DIR:-~/.cache/arete-27b}:/models:ro
